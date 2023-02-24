@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>report.html</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 21-Feb-2023 at 10:04:18 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "pytest": "7.2.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.22000-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.2.0", "metadata": "2.0.4"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.11.0</td></tr></table>
+    <h2>Summary</h2>
+    <p>73 tests ran in 201.63 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">60 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">13 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[--]</td>
+          <td class="col-duration">0.53</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E79390&gt;<br/>f_name = &#x27;&#x27;, l_name = &#x27;&#x27;, postcode = &#x27;&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                            &quot;f_name, l_name, postcode&quot;,<br/>                            [<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;&quot;,&quot;&quot;,&quot;&quot;),<br/>                                (&#x27;Asim&#x27;,&#x27;&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;De&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;&#x27;,&#x27;212778&#x27;),<br/>                                (&#x27;SAURAV&#x27;,&#x27;DAS&#x27;,&#x27;212770&#x27;),<br/>                                (&#x27;saurav&#x27;,&#x27;das&#x27;,&#x27;2127770&#x27;),<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;Rick&quot;,&#x27;Majumdar&#x27;,&#x27;212888&#x27;),<br/>                                (&quot;123&quot;,&#x27;789&#x27;,&#x27;122100&#x27;),<br/>                                (&quot;@$&amp;&quot;,&quot;#*+&quot;,&quot;EE1122&quot;),<br/>                                (&quot; &quot;,&quot; &quot;,&quot; &quot;)<br/>                            ]<br/>                        )<br/>    def test_addCustomer(self,f_name,l_name,postcode):<br/>        try:<br/>            self.driver.find_element(By.XPATH,locator[&#x27;Add_customer&#x27;]).click()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;f_name&#x27;]).send_keys(f_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;l_name&#x27;]).send_keys(l_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;post_code&#x27;]).send_keys(postcode)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;cust_submit&#x27;]).click()<br/>&gt;           a=self.driver.switch_to.alert<br/><br/>test_new_xyz.py:63: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.switch_to.SwitchTo object at 0x00000270DEAFA950&gt;<br/><br/>    @property<br/>    def alert(self) -&gt; Alert:<br/>        &quot;&quot;&quot;<br/>        Switches focus to an alert on the page.<br/>    <br/>        :Usage:<br/>            ::<br/>    <br/>                alert = driver.switch_to.alert<br/>        &quot;&quot;&quot;<br/>        alert = Alert(self._driver)<br/>&gt;       _ = alert.text<br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\switch_to.py:57: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.common.alert.Alert object at 0x00000270E0EBF910&gt;<br/><br/>    @property<br/>    def text(self):<br/>        &quot;&quot;&quot;<br/>        Gets the text of the Alert.<br/>        &quot;&quot;&quot;<br/>&gt;       return self.driver.execute(Command.W3C_GET_ALERT_TEXT)[&quot;value&quot;]<br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\common\alert.py:66: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;dd041fb368ecffcfe30da84635822ead&quot;)&gt;<br/>driver_command = &#x27;w3cGetAlertText&#x27;, params = {}<br/><br/>    def execute(self, driver_command: str, params: dict = None) -&gt; dict:<br/>        &quot;&quot;&quot;<br/>        Sends a command to be executed by a command.CommandExecutor.<br/>    <br/>        :Args:<br/>         - driver_command: The name of the command to execute as a string.<br/>         - params: A dictionary of named parameters to send with the command.<br/>    <br/>        :Returns:<br/>          The command&#x27;s JSON response loaded into a dictionary object.<br/>        &quot;&quot;&quot;<br/>        params = self._wrap_value(params)<br/>    <br/>        if self.session_id:<br/>            if not params:<br/>                params = {&quot;sessionId&quot;: self.session_id}<br/>            elif &quot;sessionId&quot; not in params:<br/>                params[&quot;sessionId&quot;] = self.session_id<br/>    <br/>        response = self.command_executor.execute(driver_command, params)<br/>        if response:<br/>&gt;           self.error_handler.check_response(response)<br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\webdriver.py:444: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.errorhandler.ErrorHandler object at 0x00000270E0E404D0&gt;<br/>response = {&#x27;status&#x27;: 404, &#x27;value&#x27;: &#x27;{&quot;value&quot;:{&quot;error&quot;:&quot;no such alert&quot;,&quot;message&quot;:&quot;no such alert\\n  (Session info: chrome=110.0.5...tFullPathName_UEx [0x77018FD2+1218]\\n\\tRtlGetFullPathName_UEx [0x77018F9D+1165]\\n\\t(No symbol) [0x00000000]\\n&quot;}}&#x27;}<br/><br/>    def check_response(self, response: Dict[str, Any]) -&gt; None:<br/>        &quot;&quot;&quot;<br/>        Checks that a JSON response from the WebDriver does not have an error.<br/>    <br/>        :Args:<br/>         - response - The JSON response from the WebDriver server as a dictionary<br/>           object.<br/>    <br/>        :Raises: If the response contains an error message.<br/>        &quot;&quot;&quot;<br/>        status = response.get(&quot;status&quot;, None)<br/>        if not status or status == ErrorCode.SUCCESS:<br/>            return<br/>        value = None<br/>        message = response.get(&quot;message&quot;, &quot;&quot;)<br/>        screen: str = response.get(&quot;screen&quot;, &quot;&quot;)<br/>        stacktrace = None<br/>        if isinstance(status, int):<br/>            value_json = response.get(&quot;value&quot;, None)<br/>            if value_json and isinstance(value_json, str):<br/>                import json<br/>    <br/>                try:<br/>                    value = json.loads(value_json)<br/>                    if len(value.keys()) == 1:<br/>                        value = value[&quot;value&quot;]<br/>                    status = value.get(&quot;error&quot;, None)<br/>                    if not status:<br/>                        status = value.get(&quot;status&quot;, ErrorCode.UNKNOWN_ERROR)<br/>                        message = value.get(&quot;value&quot;) or value.get(&quot;message&quot;)<br/>                        if not isinstance(message, str):<br/>                            value = message<br/>                            message = message.get(&quot;message&quot;)<br/>                    else:<br/>                        message = value.get(&quot;message&quot;, None)<br/>                except ValueError:<br/>                    pass<br/>    <br/>        exception_class: Type[WebDriverException]<br/>        if status in ErrorCode.NO_SUCH_ELEMENT:<br/>            exception_class = NoSuchElementException<br/>        elif status in ErrorCode.NO_SUCH_FRAME:<br/>            exception_class = NoSuchFrameException<br/>        elif status in ErrorCode.NO_SUCH_SHADOW_ROOT:<br/>            exception_class = NoSuchShadowRootException<br/>        elif status in ErrorCode.NO_SUCH_WINDOW:<br/>            exception_class = NoSuchWindowException<br/>        elif status in ErrorCode.STALE_ELEMENT_REFERENCE:<br/>            exception_class = StaleElementReferenceException<br/>        elif status in ErrorCode.ELEMENT_NOT_VISIBLE:<br/>            exception_class = ElementNotVisibleException<br/>        elif status in ErrorCode.INVALID_ELEMENT_STATE:<br/>            exception_class = InvalidElementStateException<br/>        elif (<br/>            status in ErrorCode.INVALID_SELECTOR<br/>            or status in ErrorCode.INVALID_XPATH_SELECTOR<br/>            or status in ErrorCode.INVALID_XPATH_SELECTOR_RETURN_TYPER<br/>        ):<br/>            exception_class = InvalidSelectorException<br/>        elif status in ErrorCode.ELEMENT_IS_NOT_SELECTABLE:<br/>            exception_class = ElementNotSelectableException<br/>        elif status in ErrorCode.ELEMENT_NOT_INTERACTABLE:<br/>            exception_class = ElementNotInteractableException<br/>        elif status in ErrorCode.INVALID_COOKIE_DOMAIN:<br/>            exception_class = InvalidCookieDomainException<br/>        elif status in ErrorCode.UNABLE_TO_SET_COOKIE:<br/>            exception_class = UnableToSetCookieException<br/>        elif status in ErrorCode.TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.SCRIPT_TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.UNKNOWN_ERROR:<br/>            exception_class = WebDriverException<br/>        elif status in ErrorCode.UNEXPECTED_ALERT_OPEN:<br/>            exception_class = UnexpectedAlertPresentException<br/>        elif status in ErrorCode.NO_ALERT_OPEN:<br/>            exception_class = NoAlertPresentException<br/>        elif status in ErrorCode.IME_NOT_AVAILABLE:<br/>            exception_class = ImeNotAvailableException<br/>        elif status in ErrorCode.IME_ENGINE_ACTIVATION_FAILED:<br/>            exception_class = ImeActivationFailedException<br/>        elif status in ErrorCode.MOVE_TARGET_OUT_OF_BOUNDS:<br/>            exception_class = MoveTargetOutOfBoundsException<br/>        elif status in ErrorCode.JAVASCRIPT_ERROR:<br/>            exception_class = JavascriptException<br/>        elif status in ErrorCode.SESSION_NOT_CREATED:<br/>            exception_class = SessionNotCreatedException<br/>        elif status in ErrorCode.INVALID_ARGUMENT:<br/>            exception_class = InvalidArgumentException<br/>        elif status in ErrorCode.NO_SUCH_COOKIE:<br/>            exception_class = NoSuchCookieException<br/>        elif status in ErrorCode.UNABLE_TO_CAPTURE_SCREEN:<br/>            exception_class = ScreenshotException<br/>        elif status in ErrorCode.ELEMENT_CLICK_INTERCEPTED:<br/>            exception_class = ElementClickInterceptedException<br/>        elif status in ErrorCode.INSECURE_CERTIFICATE:<br/>            exception_class = InsecureCertificateException<br/>        elif status in ErrorCode.INVALID_COORDINATES:<br/>            exception_class = InvalidCoordinatesException<br/>        elif status in ErrorCode.INVALID_SESSION_ID:<br/>            exception_class = InvalidSessionIdException<br/>        elif status in ErrorCode.UNKNOWN_METHOD:<br/>            exception_class = UnknownMethodException<br/>        else:<br/>            exception_class = WebDriverException<br/>        if not value:<br/>            value = response[&quot;value&quot;]<br/>        if isinstance(value, str):<br/>            raise exception_class(value)<br/>        if message == &quot;&quot; and &quot;message&quot; in value:<br/>            message = value[&quot;message&quot;]<br/>    <br/>        screen = None  # type: ignore[assignment]<br/>        if &quot;screen&quot; in value:<br/>            screen = value[&quot;screen&quot;]<br/>    <br/>        stacktrace = None<br/>        st_value = value.get(&quot;stackTrace&quot;) or value.get(&quot;stacktrace&quot;)<br/>        if st_value:<br/>            if isinstance(st_value, str):<br/>                stacktrace = st_value.split(&quot;\n&quot;)<br/>            else:<br/>                stacktrace = []<br/>                try:<br/>                    for frame in st_value:<br/>                        line = frame.get(&quot;lineNumber&quot;, &quot;&quot;)<br/>                        file = frame.get(&quot;fileName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if line:<br/>                            file = f&quot;{file}:{line}&quot;<br/>                        meth = frame.get(&quot;methodName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if &quot;className&quot; in frame:<br/>                            meth = &quot;{}.{}&quot;.format(frame[&quot;className&quot;], meth)<br/>                        msg = &quot;    at %s (%s)&quot;<br/>                        msg = msg % (meth, file)<br/>                        stacktrace.append(msg)<br/>                except TypeError:<br/>                    pass<br/>        if exception_class == UnexpectedAlertPresentException:<br/>            alert_text = None<br/>            if &quot;data&quot; in value:<br/>                alert_text = value[&quot;data&quot;].get(&quot;text&quot;)<br/>            elif &quot;alert&quot; in value:<br/>                alert_text = value[&quot;alert&quot;].get(&quot;text&quot;)<br/>            raise exception_class(message, screen, stacktrace, alert_text)  # type: ignore[call-arg]  # mypy is not smart enough here<br/>&gt;       raise exception_class(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.NoAlertPresentException: Message: no such alert</span><br/><span class="error">E         (Session info: chrome=110.0.5481.104)</span><br/><span class="error">E       Stacktrace:</span><br/><span class="error">E       Backtrace:</span><br/><span class="error">E       	(No symbol) [0x002D37D3]</span><br/><span class="error">E       	(No symbol) [0x00268B81]</span><br/><span class="error">E       	(No symbol) [0x0016B230]</span><br/><span class="error">E       	(No symbol) [0x00163CE0]</span><br/><span class="error">E       	(No symbol) [0x0017DD34]</span><br/><span class="error">E       	(No symbol) [0x001BB494]</span><br/><span class="error">E       	(No symbol) [0x0017DB0E]</span><br/><span class="error">E       	(No symbol) [0x001BB216]</span><br/><span class="error">E       	(No symbol) [0x00190D97]</span><br/><span class="error">E       	(No symbol) [0x0019253D]</span><br/><span class="error">E       	GetHandleVerifier [0x0054ABF2+2510930]</span><br/><span class="error">E       	GetHandleVerifier [0x00578EC1+2700065]</span><br/><span class="error">E       	GetHandleVerifier [0x0057C86C+2714828]</span><br/><span class="error">E       	GetHandleVerifier [0x00383480+645344]</span><br/><span class="error">E       	(No symbol) [0x00270FD2]</span><br/><span class="error">E       	(No symbol) [0x00276C68]</span><br/><span class="error">E       	(No symbol) [0x00276D4B]</span><br/><span class="error">E       	(No symbol) [0x00280D6B]</span><br/><span class="error">E       	BaseThreadInitThunk [0x753B6939+25]</span><br/><span class="error">E       	RtlGetFullPathName_UEx [0x77018FD2+1218]</span><br/><span class="error">E       	RtlGetFullPathName_UEx [0x77018F9D+1165]</span><br/><span class="error">E       	(No symbol) [0x00000000]</span><br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\errorhandler.py:249: NoAlertPresentException<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E79390&gt;<br/>f_name = &#x27;&#x27;, l_name = &#x27;&#x27;, postcode = &#x27;&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                            &quot;f_name, l_name, postcode&quot;,<br/>                            [<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;&quot;,&quot;&quot;,&quot;&quot;),<br/>                                (&#x27;Asim&#x27;,&#x27;&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;De&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;&#x27;,&#x27;212778&#x27;),<br/>                                (&#x27;SAURAV&#x27;,&#x27;DAS&#x27;,&#x27;212770&#x27;),<br/>                                (&#x27;saurav&#x27;,&#x27;das&#x27;,&#x27;2127770&#x27;),<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;Rick&quot;,&#x27;Majumdar&#x27;,&#x27;212888&#x27;),<br/>                                (&quot;123&quot;,&#x27;789&#x27;,&#x27;122100&#x27;),<br/>                                (&quot;@$&amp;&quot;,&quot;#*+&quot;,&quot;EE1122&quot;),<br/>                                (&quot; &quot;,&quot; &quot;,&quot; &quot;)<br/>                            ]<br/>                        )<br/>    def test_addCustomer(self,f_name,l_name,postcode):<br/>        try:<br/>            self.driver.find_element(By.XPATH,locator[&#x27;Add_customer&#x27;]).click()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;f_name&#x27;]).send_keys(f_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;l_name&#x27;]).send_keys(l_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;post_code&#x27;]).send_keys(postcode)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;cust_submit&#x27;]).click()<br/>            a=self.driver.switch_to.alert<br/>            alert_text = a.text<br/>            self.driver.switch_to.alert.accept()<br/>    <br/>            self.driver.find_element(By.XPATH,locator[&#x27;f_name&#x27;]).clear()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;l_name&#x27;]).clear()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;post_code&#x27;]).clear()<br/>    <br/>            sub_str=&#x27;Customer added successfully&#x27;<br/>            assert sub_str in alert_text<br/>        except:<br/>            sub_str3=&quot;Please check the details.&quot;<br/>&gt;           assert sub_str3 in alert_text<br/><span class="error">E           UnboundLocalError: cannot access local variable &#x27;alert_text&#x27; where it is not associated with a value</span><br/><br/>test_new_xyz.py:75: UnboundLocalError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[Asim--]</td>
+          <td class="col-duration">0.27</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E79650&gt;<br/>f_name = &#x27;Asim&#x27;, l_name = &#x27;&#x27;, postcode = &#x27;&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                            &quot;f_name, l_name, postcode&quot;,<br/>                            [<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;&quot;,&quot;&quot;,&quot;&quot;),<br/>                                (&#x27;Asim&#x27;,&#x27;&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;De&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;&#x27;,&#x27;212778&#x27;),<br/>                                (&#x27;SAURAV&#x27;,&#x27;DAS&#x27;,&#x27;212770&#x27;),<br/>                                (&#x27;saurav&#x27;,&#x27;das&#x27;,&#x27;2127770&#x27;),<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;Rick&quot;,&#x27;Majumdar&#x27;,&#x27;212888&#x27;),<br/>                                (&quot;123&quot;,&#x27;789&#x27;,&#x27;122100&#x27;),<br/>                                (&quot;@$&amp;&quot;,&quot;#*+&quot;,&quot;EE1122&quot;),<br/>                                (&quot; &quot;,&quot; &quot;,&quot; &quot;)<br/>                            ]<br/>                        )<br/>    def test_addCustomer(self,f_name,l_name,postcode):<br/>        try:<br/>            self.driver.find_element(By.XPATH,locator[&#x27;Add_customer&#x27;]).click()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;f_name&#x27;]).send_keys(f_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;l_name&#x27;]).send_keys(l_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;post_code&#x27;]).send_keys(postcode)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;cust_submit&#x27;]).click()<br/>&gt;           a=self.driver.switch_to.alert<br/><br/>test_new_xyz.py:63: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.switch_to.SwitchTo object at 0x00000270DEAFA950&gt;<br/><br/>    @property<br/>    def alert(self) -&gt; Alert:<br/>        &quot;&quot;&quot;<br/>        Switches focus to an alert on the page.<br/>    <br/>        :Usage:<br/>            ::<br/>    <br/>                alert = driver.switch_to.alert<br/>        &quot;&quot;&quot;<br/>        alert = Alert(self._driver)<br/>&gt;       _ = alert.text<br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\switch_to.py:57: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.common.alert.Alert object at 0x00000270E135E210&gt;<br/><br/>    @property<br/>    def text(self):<br/>        &quot;&quot;&quot;<br/>        Gets the text of the Alert.<br/>        &quot;&quot;&quot;<br/>&gt;       return self.driver.execute(Command.W3C_GET_ALERT_TEXT)[&quot;value&quot;]<br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\common\alert.py:66: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;dd041fb368ecffcfe30da84635822ead&quot;)&gt;<br/>driver_command = &#x27;w3cGetAlertText&#x27;, params = {}<br/><br/>    def execute(self, driver_command: str, params: dict = None) -&gt; dict:<br/>        &quot;&quot;&quot;<br/>        Sends a command to be executed by a command.CommandExecutor.<br/>    <br/>        :Args:<br/>         - driver_command: The name of the command to execute as a string.<br/>         - params: A dictionary of named parameters to send with the command.<br/>    <br/>        :Returns:<br/>          The command&#x27;s JSON response loaded into a dictionary object.<br/>        &quot;&quot;&quot;<br/>        params = self._wrap_value(params)<br/>    <br/>        if self.session_id:<br/>            if not params:<br/>                params = {&quot;sessionId&quot;: self.session_id}<br/>            elif &quot;sessionId&quot; not in params:<br/>                params[&quot;sessionId&quot;] = self.session_id<br/>    <br/>        response = self.command_executor.execute(driver_command, params)<br/>        if response:<br/>&gt;           self.error_handler.check_response(response)<br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\webdriver.py:444: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.errorhandler.ErrorHandler object at 0x00000270E0E404D0&gt;<br/>response = {&#x27;status&#x27;: 404, &#x27;value&#x27;: &#x27;{&quot;value&quot;:{&quot;error&quot;:&quot;no such alert&quot;,&quot;message&quot;:&quot;no such alert\\n  (Session info: chrome=110.0.5...tFullPathName_UEx [0x77018FD2+1218]\\n\\tRtlGetFullPathName_UEx [0x77018F9D+1165]\\n\\t(No symbol) [0x00000000]\\n&quot;}}&#x27;}<br/><br/>    def check_response(self, response: Dict[str, Any]) -&gt; None:<br/>        &quot;&quot;&quot;<br/>        Checks that a JSON response from the WebDriver does not have an error.<br/>    <br/>        :Args:<br/>         - response - The JSON response from the WebDriver server as a dictionary<br/>           object.<br/>    <br/>        :Raises: If the response contains an error message.<br/>        &quot;&quot;&quot;<br/>        status = response.get(&quot;status&quot;, None)<br/>        if not status or status == ErrorCode.SUCCESS:<br/>            return<br/>        value = None<br/>        message = response.get(&quot;message&quot;, &quot;&quot;)<br/>        screen: str = response.get(&quot;screen&quot;, &quot;&quot;)<br/>        stacktrace = None<br/>        if isinstance(status, int):<br/>            value_json = response.get(&quot;value&quot;, None)<br/>            if value_json and isinstance(value_json, str):<br/>                import json<br/>    <br/>                try:<br/>                    value = json.loads(value_json)<br/>                    if len(value.keys()) == 1:<br/>                        value = value[&quot;value&quot;]<br/>                    status = value.get(&quot;error&quot;, None)<br/>                    if not status:<br/>                        status = value.get(&quot;status&quot;, ErrorCode.UNKNOWN_ERROR)<br/>                        message = value.get(&quot;value&quot;) or value.get(&quot;message&quot;)<br/>                        if not isinstance(message, str):<br/>                            value = message<br/>                            message = message.get(&quot;message&quot;)<br/>                    else:<br/>                        message = value.get(&quot;message&quot;, None)<br/>                except ValueError:<br/>                    pass<br/>    <br/>        exception_class: Type[WebDriverException]<br/>        if status in ErrorCode.NO_SUCH_ELEMENT:<br/>            exception_class = NoSuchElementException<br/>        elif status in ErrorCode.NO_SUCH_FRAME:<br/>            exception_class = NoSuchFrameException<br/>        elif status in ErrorCode.NO_SUCH_SHADOW_ROOT:<br/>            exception_class = NoSuchShadowRootException<br/>        elif status in ErrorCode.NO_SUCH_WINDOW:<br/>            exception_class = NoSuchWindowException<br/>        elif status in ErrorCode.STALE_ELEMENT_REFERENCE:<br/>            exception_class = StaleElementReferenceException<br/>        elif status in ErrorCode.ELEMENT_NOT_VISIBLE:<br/>            exception_class = ElementNotVisibleException<br/>        elif status in ErrorCode.INVALID_ELEMENT_STATE:<br/>            exception_class = InvalidElementStateException<br/>        elif (<br/>            status in ErrorCode.INVALID_SELECTOR<br/>            or status in ErrorCode.INVALID_XPATH_SELECTOR<br/>            or status in ErrorCode.INVALID_XPATH_SELECTOR_RETURN_TYPER<br/>        ):<br/>            exception_class = InvalidSelectorException<br/>        elif status in ErrorCode.ELEMENT_IS_NOT_SELECTABLE:<br/>            exception_class = ElementNotSelectableException<br/>        elif status in ErrorCode.ELEMENT_NOT_INTERACTABLE:<br/>            exception_class = ElementNotInteractableException<br/>        elif status in ErrorCode.INVALID_COOKIE_DOMAIN:<br/>            exception_class = InvalidCookieDomainException<br/>        elif status in ErrorCode.UNABLE_TO_SET_COOKIE:<br/>            exception_class = UnableToSetCookieException<br/>        elif status in ErrorCode.TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.SCRIPT_TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.UNKNOWN_ERROR:<br/>            exception_class = WebDriverException<br/>        elif status in ErrorCode.UNEXPECTED_ALERT_OPEN:<br/>            exception_class = UnexpectedAlertPresentException<br/>        elif status in ErrorCode.NO_ALERT_OPEN:<br/>            exception_class = NoAlertPresentException<br/>        elif status in ErrorCode.IME_NOT_AVAILABLE:<br/>            exception_class = ImeNotAvailableException<br/>        elif status in ErrorCode.IME_ENGINE_ACTIVATION_FAILED:<br/>            exception_class = ImeActivationFailedException<br/>        elif status in ErrorCode.MOVE_TARGET_OUT_OF_BOUNDS:<br/>            exception_class = MoveTargetOutOfBoundsException<br/>        elif status in ErrorCode.JAVASCRIPT_ERROR:<br/>            exception_class = JavascriptException<br/>        elif status in ErrorCode.SESSION_NOT_CREATED:<br/>            exception_class = SessionNotCreatedException<br/>        elif status in ErrorCode.INVALID_ARGUMENT:<br/>            exception_class = InvalidArgumentException<br/>        elif status in ErrorCode.NO_SUCH_COOKIE:<br/>            exception_class = NoSuchCookieException<br/>        elif status in ErrorCode.UNABLE_TO_CAPTURE_SCREEN:<br/>            exception_class = ScreenshotException<br/>        elif status in ErrorCode.ELEMENT_CLICK_INTERCEPTED:<br/>            exception_class = ElementClickInterceptedException<br/>        elif status in ErrorCode.INSECURE_CERTIFICATE:<br/>            exception_class = InsecureCertificateException<br/>        elif status in ErrorCode.INVALID_COORDINATES:<br/>            exception_class = InvalidCoordinatesException<br/>        elif status in ErrorCode.INVALID_SESSION_ID:<br/>            exception_class = InvalidSessionIdException<br/>        elif status in ErrorCode.UNKNOWN_METHOD:<br/>            exception_class = UnknownMethodException<br/>        else:<br/>            exception_class = WebDriverException<br/>        if not value:<br/>            value = response[&quot;value&quot;]<br/>        if isinstance(value, str):<br/>            raise exception_class(value)<br/>        if message == &quot;&quot; and &quot;message&quot; in value:<br/>            message = value[&quot;message&quot;]<br/>    <br/>        screen = None  # type: ignore[assignment]<br/>        if &quot;screen&quot; in value:<br/>            screen = value[&quot;screen&quot;]<br/>    <br/>        stacktrace = None<br/>        st_value = value.get(&quot;stackTrace&quot;) or value.get(&quot;stacktrace&quot;)<br/>        if st_value:<br/>            if isinstance(st_value, str):<br/>                stacktrace = st_value.split(&quot;\n&quot;)<br/>            else:<br/>                stacktrace = []<br/>                try:<br/>                    for frame in st_value:<br/>                        line = frame.get(&quot;lineNumber&quot;, &quot;&quot;)<br/>                        file = frame.get(&quot;fileName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if line:<br/>                            file = f&quot;{file}:{line}&quot;<br/>                        meth = frame.get(&quot;methodName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if &quot;className&quot; in frame:<br/>                            meth = &quot;{}.{}&quot;.format(frame[&quot;className&quot;], meth)<br/>                        msg = &quot;    at %s (%s)&quot;<br/>                        msg = msg % (meth, file)<br/>                        stacktrace.append(msg)<br/>                except TypeError:<br/>                    pass<br/>        if exception_class == UnexpectedAlertPresentException:<br/>            alert_text = None<br/>            if &quot;data&quot; in value:<br/>                alert_text = value[&quot;data&quot;].get(&quot;text&quot;)<br/>            elif &quot;alert&quot; in value:<br/>                alert_text = value[&quot;alert&quot;].get(&quot;text&quot;)<br/>            raise exception_class(message, screen, stacktrace, alert_text)  # type: ignore[call-arg]  # mypy is not smart enough here<br/>&gt;       raise exception_class(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.NoAlertPresentException: Message: no such alert</span><br/><span class="error">E         (Session info: chrome=110.0.5481.104)</span><br/><span class="error">E       Stacktrace:</span><br/><span class="error">E       Backtrace:</span><br/><span class="error">E       	(No symbol) [0x002D37D3]</span><br/><span class="error">E       	(No symbol) [0x00268B81]</span><br/><span class="error">E       	(No symbol) [0x0016B230]</span><br/><span class="error">E       	(No symbol) [0x00163CE0]</span><br/><span class="error">E       	(No symbol) [0x0017DD34]</span><br/><span class="error">E       	(No symbol) [0x001BB494]</span><br/><span class="error">E       	(No symbol) [0x0017DB0E]</span><br/><span class="error">E       	(No symbol) [0x001BB216]</span><br/><span class="error">E       	(No symbol) [0x00190D97]</span><br/><span class="error">E       	(No symbol) [0x0019253D]</span><br/><span class="error">E       	GetHandleVerifier [0x0054ABF2+2510930]</span><br/><span class="error">E       	GetHandleVerifier [0x00578EC1+2700065]</span><br/><span class="error">E       	GetHandleVerifier [0x0057C86C+2714828]</span><br/><span class="error">E       	GetHandleVerifier [0x00383480+645344]</span><br/><span class="error">E       	(No symbol) [0x00270FD2]</span><br/><span class="error">E       	(No symbol) [0x00276C68]</span><br/><span class="error">E       	(No symbol) [0x00276D4B]</span><br/><span class="error">E       	(No symbol) [0x00280D6B]</span><br/><span class="error">E       	BaseThreadInitThunk [0x753B6939+25]</span><br/><span class="error">E       	RtlGetFullPathName_UEx [0x77018FD2+1218]</span><br/><span class="error">E       	RtlGetFullPathName_UEx [0x77018F9D+1165]</span><br/><span class="error">E       	(No symbol) [0x00000000]</span><br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\errorhandler.py:249: NoAlertPresentException<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E79650&gt;<br/>f_name = &#x27;Asim&#x27;, l_name = &#x27;&#x27;, postcode = &#x27;&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                            &quot;f_name, l_name, postcode&quot;,<br/>                            [<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;&quot;,&quot;&quot;,&quot;&quot;),<br/>                                (&#x27;Asim&#x27;,&#x27;&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;De&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;&#x27;,&#x27;212778&#x27;),<br/>                                (&#x27;SAURAV&#x27;,&#x27;DAS&#x27;,&#x27;212770&#x27;),<br/>                                (&#x27;saurav&#x27;,&#x27;das&#x27;,&#x27;2127770&#x27;),<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;Rick&quot;,&#x27;Majumdar&#x27;,&#x27;212888&#x27;),<br/>                                (&quot;123&quot;,&#x27;789&#x27;,&#x27;122100&#x27;),<br/>                                (&quot;@$&amp;&quot;,&quot;#*+&quot;,&quot;EE1122&quot;),<br/>                                (&quot; &quot;,&quot; &quot;,&quot; &quot;)<br/>                            ]<br/>                        )<br/>    def test_addCustomer(self,f_name,l_name,postcode):<br/>        try:<br/>            self.driver.find_element(By.XPATH,locator[&#x27;Add_customer&#x27;]).click()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;f_name&#x27;]).send_keys(f_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;l_name&#x27;]).send_keys(l_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;post_code&#x27;]).send_keys(postcode)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;cust_submit&#x27;]).click()<br/>            a=self.driver.switch_to.alert<br/>            alert_text = a.text<br/>            self.driver.switch_to.alert.accept()<br/>    <br/>            self.driver.find_element(By.XPATH,locator[&#x27;f_name&#x27;]).clear()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;l_name&#x27;]).clear()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;post_code&#x27;]).clear()<br/>    <br/>            sub_str=&#x27;Customer added successfully&#x27;<br/>            assert sub_str in alert_text<br/>        except:<br/>            sub_str3=&quot;Please check the details.&quot;<br/>&gt;           assert sub_str3 in alert_text<br/><span class="error">E           UnboundLocalError: cannot access local variable &#x27;alert_text&#x27; where it is not associated with a value</span><br/><br/>test_new_xyz.py:75: UnboundLocalError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[-De-]</td>
+          <td class="col-duration">0.27</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E79910&gt;<br/>f_name = &#x27;&#x27;, l_name = &#x27;De&#x27;, postcode = &#x27;&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                            &quot;f_name, l_name, postcode&quot;,<br/>                            [<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;&quot;,&quot;&quot;,&quot;&quot;),<br/>                                (&#x27;Asim&#x27;,&#x27;&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;De&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;&#x27;,&#x27;212778&#x27;),<br/>                                (&#x27;SAURAV&#x27;,&#x27;DAS&#x27;,&#x27;212770&#x27;),<br/>                                (&#x27;saurav&#x27;,&#x27;das&#x27;,&#x27;2127770&#x27;),<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;Rick&quot;,&#x27;Majumdar&#x27;,&#x27;212888&#x27;),<br/>                                (&quot;123&quot;,&#x27;789&#x27;,&#x27;122100&#x27;),<br/>                                (&quot;@$&amp;&quot;,&quot;#*+&quot;,&quot;EE1122&quot;),<br/>                                (&quot; &quot;,&quot; &quot;,&quot; &quot;)<br/>                            ]<br/>                        )<br/>    def test_addCustomer(self,f_name,l_name,postcode):<br/>        try:<br/>            self.driver.find_element(By.XPATH,locator[&#x27;Add_customer&#x27;]).click()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;f_name&#x27;]).send_keys(f_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;l_name&#x27;]).send_keys(l_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;post_code&#x27;]).send_keys(postcode)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;cust_submit&#x27;]).click()<br/>&gt;           a=self.driver.switch_to.alert<br/><br/>test_new_xyz.py:63: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.switch_to.SwitchTo object at 0x00000270DEAFA950&gt;<br/><br/>    @property<br/>    def alert(self) -&gt; Alert:<br/>        &quot;&quot;&quot;<br/>        Switches focus to an alert on the page.<br/>    <br/>        :Usage:<br/>            ::<br/>    <br/>                alert = driver.switch_to.alert<br/>        &quot;&quot;&quot;<br/>        alert = Alert(self._driver)<br/>&gt;       _ = alert.text<br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\switch_to.py:57: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.common.alert.Alert object at 0x00000270E12F1590&gt;<br/><br/>    @property<br/>    def text(self):<br/>        &quot;&quot;&quot;<br/>        Gets the text of the Alert.<br/>        &quot;&quot;&quot;<br/>&gt;       return self.driver.execute(Command.W3C_GET_ALERT_TEXT)[&quot;value&quot;]<br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\common\alert.py:66: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;dd041fb368ecffcfe30da84635822ead&quot;)&gt;<br/>driver_command = &#x27;w3cGetAlertText&#x27;, params = {}<br/><br/>    def execute(self, driver_command: str, params: dict = None) -&gt; dict:<br/>        &quot;&quot;&quot;<br/>        Sends a command to be executed by a command.CommandExecutor.<br/>    <br/>        :Args:<br/>         - driver_command: The name of the command to execute as a string.<br/>         - params: A dictionary of named parameters to send with the command.<br/>    <br/>        :Returns:<br/>          The command&#x27;s JSON response loaded into a dictionary object.<br/>        &quot;&quot;&quot;<br/>        params = self._wrap_value(params)<br/>    <br/>        if self.session_id:<br/>            if not params:<br/>                params = {&quot;sessionId&quot;: self.session_id}<br/>            elif &quot;sessionId&quot; not in params:<br/>                params[&quot;sessionId&quot;] = self.session_id<br/>    <br/>        response = self.command_executor.execute(driver_command, params)<br/>        if response:<br/>&gt;           self.error_handler.check_response(response)<br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\webdriver.py:444: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.errorhandler.ErrorHandler object at 0x00000270E0E404D0&gt;<br/>response = {&#x27;status&#x27;: 404, &#x27;value&#x27;: &#x27;{&quot;value&quot;:{&quot;error&quot;:&quot;no such alert&quot;,&quot;message&quot;:&quot;no such alert\\n  (Session info: chrome=110.0.5...tFullPathName_UEx [0x77018FD2+1218]\\n\\tRtlGetFullPathName_UEx [0x77018F9D+1165]\\n\\t(No symbol) [0x00000000]\\n&quot;}}&#x27;}<br/><br/>    def check_response(self, response: Dict[str, Any]) -&gt; None:<br/>        &quot;&quot;&quot;<br/>        Checks that a JSON response from the WebDriver does not have an error.<br/>    <br/>        :Args:<br/>         - response - The JSON response from the WebDriver server as a dictionary<br/>           object.<br/>    <br/>        :Raises: If the response contains an error message.<br/>        &quot;&quot;&quot;<br/>        status = response.get(&quot;status&quot;, None)<br/>        if not status or status == ErrorCode.SUCCESS:<br/>            return<br/>        value = None<br/>        message = response.get(&quot;message&quot;, &quot;&quot;)<br/>        screen: str = response.get(&quot;screen&quot;, &quot;&quot;)<br/>        stacktrace = None<br/>        if isinstance(status, int):<br/>            value_json = response.get(&quot;value&quot;, None)<br/>            if value_json and isinstance(value_json, str):<br/>                import json<br/>    <br/>                try:<br/>                    value = json.loads(value_json)<br/>                    if len(value.keys()) == 1:<br/>                        value = value[&quot;value&quot;]<br/>                    status = value.get(&quot;error&quot;, None)<br/>                    if not status:<br/>                        status = value.get(&quot;status&quot;, ErrorCode.UNKNOWN_ERROR)<br/>                        message = value.get(&quot;value&quot;) or value.get(&quot;message&quot;)<br/>                        if not isinstance(message, str):<br/>                            value = message<br/>                            message = message.get(&quot;message&quot;)<br/>                    else:<br/>                        message = value.get(&quot;message&quot;, None)<br/>                except ValueError:<br/>                    pass<br/>    <br/>        exception_class: Type[WebDriverException]<br/>        if status in ErrorCode.NO_SUCH_ELEMENT:<br/>            exception_class = NoSuchElementException<br/>        elif status in ErrorCode.NO_SUCH_FRAME:<br/>            exception_class = NoSuchFrameException<br/>        elif status in ErrorCode.NO_SUCH_SHADOW_ROOT:<br/>            exception_class = NoSuchShadowRootException<br/>        elif status in ErrorCode.NO_SUCH_WINDOW:<br/>            exception_class = NoSuchWindowException<br/>        elif status in ErrorCode.STALE_ELEMENT_REFERENCE:<br/>            exception_class = StaleElementReferenceException<br/>        elif status in ErrorCode.ELEMENT_NOT_VISIBLE:<br/>            exception_class = ElementNotVisibleException<br/>        elif status in ErrorCode.INVALID_ELEMENT_STATE:<br/>            exception_class = InvalidElementStateException<br/>        elif (<br/>            status in ErrorCode.INVALID_SELECTOR<br/>            or status in ErrorCode.INVALID_XPATH_SELECTOR<br/>            or status in ErrorCode.INVALID_XPATH_SELECTOR_RETURN_TYPER<br/>        ):<br/>            exception_class = InvalidSelectorException<br/>        elif status in ErrorCode.ELEMENT_IS_NOT_SELECTABLE:<br/>            exception_class = ElementNotSelectableException<br/>        elif status in ErrorCode.ELEMENT_NOT_INTERACTABLE:<br/>            exception_class = ElementNotInteractableException<br/>        elif status in ErrorCode.INVALID_COOKIE_DOMAIN:<br/>            exception_class = InvalidCookieDomainException<br/>        elif status in ErrorCode.UNABLE_TO_SET_COOKIE:<br/>            exception_class = UnableToSetCookieException<br/>        elif status in ErrorCode.TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.SCRIPT_TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.UNKNOWN_ERROR:<br/>            exception_class = WebDriverException<br/>        elif status in ErrorCode.UNEXPECTED_ALERT_OPEN:<br/>            exception_class = UnexpectedAlertPresentException<br/>        elif status in ErrorCode.NO_ALERT_OPEN:<br/>            exception_class = NoAlertPresentException<br/>        elif status in ErrorCode.IME_NOT_AVAILABLE:<br/>            exception_class = ImeNotAvailableException<br/>        elif status in ErrorCode.IME_ENGINE_ACTIVATION_FAILED:<br/>            exception_class = ImeActivationFailedException<br/>        elif status in ErrorCode.MOVE_TARGET_OUT_OF_BOUNDS:<br/>            exception_class = MoveTargetOutOfBoundsException<br/>        elif status in ErrorCode.JAVASCRIPT_ERROR:<br/>            exception_class = JavascriptException<br/>        elif status in ErrorCode.SESSION_NOT_CREATED:<br/>            exception_class = SessionNotCreatedException<br/>        elif status in ErrorCode.INVALID_ARGUMENT:<br/>            exception_class = InvalidArgumentException<br/>        elif status in ErrorCode.NO_SUCH_COOKIE:<br/>            exception_class = NoSuchCookieException<br/>        elif status in ErrorCode.UNABLE_TO_CAPTURE_SCREEN:<br/>            exception_class = ScreenshotException<br/>        elif status in ErrorCode.ELEMENT_CLICK_INTERCEPTED:<br/>            exception_class = ElementClickInterceptedException<br/>        elif status in ErrorCode.INSECURE_CERTIFICATE:<br/>            exception_class = InsecureCertificateException<br/>        elif status in ErrorCode.INVALID_COORDINATES:<br/>            exception_class = InvalidCoordinatesException<br/>        elif status in ErrorCode.INVALID_SESSION_ID:<br/>            exception_class = InvalidSessionIdException<br/>        elif status in ErrorCode.UNKNOWN_METHOD:<br/>            exception_class = UnknownMethodException<br/>        else:<br/>            exception_class = WebDriverException<br/>        if not value:<br/>            value = response[&quot;value&quot;]<br/>        if isinstance(value, str):<br/>            raise exception_class(value)<br/>        if message == &quot;&quot; and &quot;message&quot; in value:<br/>            message = value[&quot;message&quot;]<br/>    <br/>        screen = None  # type: ignore[assignment]<br/>        if &quot;screen&quot; in value:<br/>            screen = value[&quot;screen&quot;]<br/>    <br/>        stacktrace = None<br/>        st_value = value.get(&quot;stackTrace&quot;) or value.get(&quot;stacktrace&quot;)<br/>        if st_value:<br/>            if isinstance(st_value, str):<br/>                stacktrace = st_value.split(&quot;\n&quot;)<br/>            else:<br/>                stacktrace = []<br/>                try:<br/>                    for frame in st_value:<br/>                        line = frame.get(&quot;lineNumber&quot;, &quot;&quot;)<br/>                        file = frame.get(&quot;fileName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if line:<br/>                            file = f&quot;{file}:{line}&quot;<br/>                        meth = frame.get(&quot;methodName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if &quot;className&quot; in frame:<br/>                            meth = &quot;{}.{}&quot;.format(frame[&quot;className&quot;], meth)<br/>                        msg = &quot;    at %s (%s)&quot;<br/>                        msg = msg % (meth, file)<br/>                        stacktrace.append(msg)<br/>                except TypeError:<br/>                    pass<br/>        if exception_class == UnexpectedAlertPresentException:<br/>            alert_text = None<br/>            if &quot;data&quot; in value:<br/>                alert_text = value[&quot;data&quot;].get(&quot;text&quot;)<br/>            elif &quot;alert&quot; in value:<br/>                alert_text = value[&quot;alert&quot;].get(&quot;text&quot;)<br/>            raise exception_class(message, screen, stacktrace, alert_text)  # type: ignore[call-arg]  # mypy is not smart enough here<br/>&gt;       raise exception_class(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.NoAlertPresentException: Message: no such alert</span><br/><span class="error">E         (Session info: chrome=110.0.5481.104)</span><br/><span class="error">E       Stacktrace:</span><br/><span class="error">E       Backtrace:</span><br/><span class="error">E       	(No symbol) [0x002D37D3]</span><br/><span class="error">E       	(No symbol) [0x00268B81]</span><br/><span class="error">E       	(No symbol) [0x0016B230]</span><br/><span class="error">E       	(No symbol) [0x00163CE0]</span><br/><span class="error">E       	(No symbol) [0x0017DD34]</span><br/><span class="error">E       	(No symbol) [0x001BB494]</span><br/><span class="error">E       	(No symbol) [0x0017DB0E]</span><br/><span class="error">E       	(No symbol) [0x001BB216]</span><br/><span class="error">E       	(No symbol) [0x00190D97]</span><br/><span class="error">E       	(No symbol) [0x0019253D]</span><br/><span class="error">E       	GetHandleVerifier [0x0054ABF2+2510930]</span><br/><span class="error">E       	GetHandleVerifier [0x00578EC1+2700065]</span><br/><span class="error">E       	GetHandleVerifier [0x0057C86C+2714828]</span><br/><span class="error">E       	GetHandleVerifier [0x00383480+645344]</span><br/><span class="error">E       	(No symbol) [0x00270FD2]</span><br/><span class="error">E       	(No symbol) [0x00276C68]</span><br/><span class="error">E       	(No symbol) [0x00276D4B]</span><br/><span class="error">E       	(No symbol) [0x00280D6B]</span><br/><span class="error">E       	BaseThreadInitThunk [0x753B6939+25]</span><br/><span class="error">E       	RtlGetFullPathName_UEx [0x77018FD2+1218]</span><br/><span class="error">E       	RtlGetFullPathName_UEx [0x77018F9D+1165]</span><br/><span class="error">E       	(No symbol) [0x00000000]</span><br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\errorhandler.py:249: NoAlertPresentException<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E79910&gt;<br/>f_name = &#x27;&#x27;, l_name = &#x27;De&#x27;, postcode = &#x27;&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                            &quot;f_name, l_name, postcode&quot;,<br/>                            [<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;&quot;,&quot;&quot;,&quot;&quot;),<br/>                                (&#x27;Asim&#x27;,&#x27;&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;De&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;&#x27;,&#x27;212778&#x27;),<br/>                                (&#x27;SAURAV&#x27;,&#x27;DAS&#x27;,&#x27;212770&#x27;),<br/>                                (&#x27;saurav&#x27;,&#x27;das&#x27;,&#x27;2127770&#x27;),<br/>                                (&quot;Saurav&quot;,&quot;Das&quot;,&quot;212770&quot;),<br/>                                (&quot;Rick&quot;,&#x27;Majumdar&#x27;,&#x27;212888&#x27;),<br/>                                (&quot;123&quot;,&#x27;789&#x27;,&#x27;122100&#x27;),<br/>                                (&quot;@$&amp;&quot;,&quot;#*+&quot;,&quot;EE1122&quot;),<br/>                                (&quot; &quot;,&quot; &quot;,&quot; &quot;)<br/>                            ]<br/>                        )<br/>    def test_addCustomer(self,f_name,l_name,postcode):<br/>        try:<br/>            self.driver.find_element(By.XPATH,locator[&#x27;Add_customer&#x27;]).click()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;f_name&#x27;]).send_keys(f_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;l_name&#x27;]).send_keys(l_name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;post_code&#x27;]).send_keys(postcode)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;cust_submit&#x27;]).click()<br/>            a=self.driver.switch_to.alert<br/>            alert_text = a.text<br/>            self.driver.switch_to.alert.accept()<br/>    <br/>            self.driver.find_element(By.XPATH,locator[&#x27;f_name&#x27;]).clear()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;l_name&#x27;]).clear()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;post_code&#x27;]).clear()<br/>    <br/>            sub_str=&#x27;Customer added successfully&#x27;<br/>            assert sub_str in alert_text<br/>        except:<br/>            sub_str3=&quot;Please check the details.&quot;<br/>&gt;           assert sub_str3 in alert_text<br/><span class="error">E           UnboundLocalError: cannot access local variable &#x27;alert_text&#x27; where it is not associated with a value</span><br/><br/>test_new_xyz.py:75: UnboundLocalError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_openAccount[-Rupee]</td>
+          <td class="col-duration">15.57</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E81090&gt;, name = &#x27;&#x27;<br/>currency = &#x27;Rupee&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                            &quot;name, currency&quot;,<br/>                            [<br/>                                (&#x27;&#x27;,&quot;Rupee&quot;),<br/>                                (&#x27;Saurav Das&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;&#x27;),<br/>                                (&#x27;Saurav Das&#x27;,&quot;Dollar&quot;),<br/>                                (&#x27;Saurav Das&#x27;,&quot;Pound&quot;),<br/>                                (&#x27;Harry Potter&#x27;, &quot;Dollar&quot;)<br/>                            ]<br/>                        )<br/>    def test_openAccount(self,name,currency):<br/>        self.driver.find_element(By.XPATH,locator[&#x27;open_acc&#x27;]).click()<br/>        customer=Select(self.driver.find_element(By.ID,locator[&#x27;dropdown_id&#x27;]))<br/>&gt;       customer.select_by_visible_text(name)<br/><br/>test_new_xyz.py:94: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.select.Select object at 0x00000270E1365350&gt;<br/>text = &#x27;&#x27;<br/><br/>    def select_by_visible_text(self, text):<br/>        &quot;&quot;&quot;Select all options that display text matching the argument. That is, when given &quot;Bar&quot; this<br/>        would select an option like:<br/>    <br/>         &lt;option value=&quot;foo&quot;&gt;Bar&lt;/option&gt;<br/>    <br/>        :Args:<br/>         - text - The visible text to match against<br/>    <br/>         throws NoSuchElementException If there is no option with specified text in SELECT<br/>        &quot;&quot;&quot;<br/>        xpath = &quot;.//option[normalize-space(.) = %s]&quot; % self._escape_string(text)<br/>        opts = self._el.find_elements(By.XPATH, xpath)<br/>        matched = False<br/>        for opt in opts:<br/>            self._set_selected(opt)<br/>            if not self.is_multiple:<br/>                return<br/>            matched = True<br/>    <br/>        if len(opts) == 0 and &quot; &quot; in text:<br/>            sub_string_without_space = self._get_longest_token(text)<br/>            if sub_string_without_space == &quot;&quot;:<br/>                candidates = self.options<br/>            else:<br/>                xpath = &quot;.//option[contains(.,%s)]&quot; % self._escape_string(sub_string_without_space)<br/>                candidates = self._el.find_elements(By.XPATH, xpath)<br/>            for candidate in candidates:<br/>                if text == candidate.text:<br/>                    self._set_selected(candidate)<br/>                    if not self.is_multiple:<br/>                        return<br/>                    matched = True<br/>    <br/>        if not matched:<br/>&gt;           raise NoSuchElementException(&quot;Could not locate element with visible text: %s&quot; % text)<br/><span class="error">E           selenium.common.exceptions.NoSuchElementException: Message: Could not locate element with visible text:</span><br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\support\select.py:134: NoSuchElementException<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_openAccount[Saurav Das-]</td>
+          <td class="col-duration">15.36</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E81250&gt;<br/>name = &#x27;Saurav Das&#x27;, currency = &#x27;&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                            &quot;name, currency&quot;,<br/>                            [<br/>                                (&#x27;&#x27;,&quot;Rupee&quot;),<br/>                                (&#x27;Saurav Das&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;&#x27;),<br/>                                (&#x27;Saurav Das&#x27;,&quot;Dollar&quot;),<br/>                                (&#x27;Saurav Das&#x27;,&quot;Pound&quot;),<br/>                                (&#x27;Harry Potter&#x27;, &quot;Dollar&quot;)<br/>                            ]<br/>                        )<br/>    def test_openAccount(self,name,currency):<br/>        self.driver.find_element(By.XPATH,locator[&#x27;open_acc&#x27;]).click()<br/>        customer=Select(self.driver.find_element(By.ID,locator[&#x27;dropdown_id&#x27;]))<br/>        customer.select_by_visible_text(name)<br/>        Currency=Select(self.driver.find_element(By.ID,locator[&#x27;curr_id&#x27;]))<br/>&gt;       Currency.select_by_visible_text(currency)<br/><br/>test_new_xyz.py:96: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.select.Select object at 0x00000270E1362050&gt;<br/>text = &#x27;&#x27;<br/><br/>    def select_by_visible_text(self, text):<br/>        &quot;&quot;&quot;Select all options that display text matching the argument. That is, when given &quot;Bar&quot; this<br/>        would select an option like:<br/>    <br/>         &lt;option value=&quot;foo&quot;&gt;Bar&lt;/option&gt;<br/>    <br/>        :Args:<br/>         - text - The visible text to match against<br/>    <br/>         throws NoSuchElementException If there is no option with specified text in SELECT<br/>        &quot;&quot;&quot;<br/>        xpath = &quot;.//option[normalize-space(.) = %s]&quot; % self._escape_string(text)<br/>        opts = self._el.find_elements(By.XPATH, xpath)<br/>        matched = False<br/>        for opt in opts:<br/>            self._set_selected(opt)<br/>            if not self.is_multiple:<br/>                return<br/>            matched = True<br/>    <br/>        if len(opts) == 0 and &quot; &quot; in text:<br/>            sub_string_without_space = self._get_longest_token(text)<br/>            if sub_string_without_space == &quot;&quot;:<br/>                candidates = self.options<br/>            else:<br/>                xpath = &quot;.//option[contains(.,%s)]&quot; % self._escape_string(sub_string_without_space)<br/>                candidates = self._el.find_elements(By.XPATH, xpath)<br/>            for candidate in candidates:<br/>                if text == candidate.text:<br/>                    self._set_selected(candidate)<br/>                    if not self.is_multiple:<br/>                        return<br/>                    matched = True<br/>    <br/>        if not matched:<br/>&gt;           raise NoSuchElementException(&quot;Could not locate element with visible text: %s&quot; % text)<br/><span class="error">E           selenium.common.exceptions.NoSuchElementException: Message: Could not locate element with visible text:</span><br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\support\select.py:134: NoSuchElementException<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_openAccount[-]</td>
+          <td class="col-duration">15.16</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E6AC50&gt;, name = &#x27;&#x27;<br/>currency = &#x27;&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                            &quot;name, currency&quot;,<br/>                            [<br/>                                (&#x27;&#x27;,&quot;Rupee&quot;),<br/>                                (&#x27;Saurav Das&#x27;,&#x27;&#x27;),<br/>                                (&#x27;&#x27;,&#x27;&#x27;),<br/>                                (&#x27;Saurav Das&#x27;,&quot;Dollar&quot;),<br/>                                (&#x27;Saurav Das&#x27;,&quot;Pound&quot;),<br/>                                (&#x27;Harry Potter&#x27;, &quot;Dollar&quot;)<br/>                            ]<br/>                        )<br/>    def test_openAccount(self,name,currency):<br/>        self.driver.find_element(By.XPATH,locator[&#x27;open_acc&#x27;]).click()<br/>        customer=Select(self.driver.find_element(By.ID,locator[&#x27;dropdown_id&#x27;]))<br/>&gt;       customer.select_by_visible_text(name)<br/><br/>test_new_xyz.py:94: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.select.Select object at 0x00000270E135DC90&gt;<br/>text = &#x27;&#x27;<br/><br/>    def select_by_visible_text(self, text):<br/>        &quot;&quot;&quot;Select all options that display text matching the argument. That is, when given &quot;Bar&quot; this<br/>        would select an option like:<br/>    <br/>         &lt;option value=&quot;foo&quot;&gt;Bar&lt;/option&gt;<br/>    <br/>        :Args:<br/>         - text - The visible text to match against<br/>    <br/>         throws NoSuchElementException If there is no option with specified text in SELECT<br/>        &quot;&quot;&quot;<br/>        xpath = &quot;.//option[normalize-space(.) = %s]&quot; % self._escape_string(text)<br/>        opts = self._el.find_elements(By.XPATH, xpath)<br/>        matched = False<br/>        for opt in opts:<br/>            self._set_selected(opt)<br/>            if not self.is_multiple:<br/>                return<br/>            matched = True<br/>    <br/>        if len(opts) == 0 and &quot; &quot; in text:<br/>            sub_string_without_space = self._get_longest_token(text)<br/>            if sub_string_without_space == &quot;&quot;:<br/>                candidates = self.options<br/>            else:<br/>                xpath = &quot;.//option[contains(.,%s)]&quot; % self._escape_string(sub_string_without_space)<br/>                candidates = self._el.find_elements(By.XPATH, xpath)<br/>            for candidate in candidates:<br/>                if text == candidate.text:<br/>                    self._set_selected(candidate)<br/>                    if not self.is_multiple:<br/>                        return<br/>                    matched = True<br/>    <br/>        if not matched:<br/>&gt;           raise NoSuchElementException(&quot;Could not locate element with visible text: %s&quot; % text)<br/><span class="error">E           selenium.common.exceptions.NoSuchElementException: Message: Could not locate element with visible text:</span><br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\support\select.py:134: NoSuchElementException<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customer[Ribhu]</td>
+          <td class="col-duration">0.30</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E83450&gt;<br/>search = &#x27;Ribhu&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                        &quot;search&quot;,<br/>                        [<br/>                            (&quot;Saurav&quot;),<br/>                            (&quot;1001&quot;),<br/>                            (&quot;Majumdar&quot;),<br/>                            (&#x27;EE1122&#x27;),<br/>                            (&#x27;Ribhu&#x27;)<br/>                        ]<br/>                    )<br/>    def test_customer(self,search):<br/>        self.driver.find_element(By.XPATH,locator[&#x27;customer&#x27;]).click()<br/>        self.driver.find_element(By.XPATH,locator[&#x27;search&#x27;]).send_keys(search)<br/>        Table=self.driver.find_element(By.XPATH,locator[&#x27;cust_table&#x27;]).text<br/>        self.driver.find_element(By.XPATH,locator[&#x27;search&#x27;]).clear()<br/>    <br/>&gt;       assert search in Table<br/><span class="error">E       AssertionError: assert &#x27;Ribhu&#x27; in &#x27;First Name Last Name Post Code Account Number Delete Customer&#x27;</span><br/><br/>test_new_xyz.py:125: AssertionError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_remove[1025]</td>
+          <td class="col-duration">15.16</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E89490&gt;<br/>remove = &#x27;1025&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                        &quot;remove&quot;,<br/>                        [<br/>                            (&quot;Ron&quot;),<br/>                            (&quot;789&quot;),<br/>                            (&#x27;EE1122&#x27;),<br/>                            (&#x27;1025&#x27;)<br/>                        ]<br/>                    )<br/>    def test_remove(self,remove):<br/>    <br/>        self.driver.find_element(By.XPATH,locator[&#x27;search&#x27;]).send_keys(remove)<br/>&gt;       self.driver.find_element(By.XPATH,locator[&#x27;delete&#x27;]).click()<br/><br/>test_new_xyz.py:142: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\webdriver.py:861: in find_element<br/>    return self.execute(Command.FIND_ELEMENT, {&quot;using&quot;: by, &quot;value&quot;: value})[&quot;value&quot;]<br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\webdriver.py:444: in execute<br/>    self.error_handler.check_response(response)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.errorhandler.ErrorHandler object at 0x00000270E0E404D0&gt;<br/>response = {&#x27;status&#x27;: 404, &#x27;value&#x27;: &#x27;{&quot;value&quot;:{&quot;error&quot;:&quot;no such element&quot;,&quot;message&quot;:&quot;no such element: Unable to locate element: {\...tFullPathName_UEx [0x77018FD2+1218]\\n\\tRtlGetFullPathName_UEx [0x77018F9D+1165]\\n\\t(No symbol) [0x00000000]\\n&quot;}}&#x27;}<br/><br/>    def check_response(self, response: Dict[str, Any]) -&gt; None:<br/>        &quot;&quot;&quot;<br/>        Checks that a JSON response from the WebDriver does not have an error.<br/>    <br/>        :Args:<br/>         - response - The JSON response from the WebDriver server as a dictionary<br/>           object.<br/>    <br/>        :Raises: If the response contains an error message.<br/>        &quot;&quot;&quot;<br/>        status = response.get(&quot;status&quot;, None)<br/>        if not status or status == ErrorCode.SUCCESS:<br/>            return<br/>        value = None<br/>        message = response.get(&quot;message&quot;, &quot;&quot;)<br/>        screen: str = response.get(&quot;screen&quot;, &quot;&quot;)<br/>        stacktrace = None<br/>        if isinstance(status, int):<br/>            value_json = response.get(&quot;value&quot;, None)<br/>            if value_json and isinstance(value_json, str):<br/>                import json<br/>    <br/>                try:<br/>                    value = json.loads(value_json)<br/>                    if len(value.keys()) == 1:<br/>                        value = value[&quot;value&quot;]<br/>                    status = value.get(&quot;error&quot;, None)<br/>                    if not status:<br/>                        status = value.get(&quot;status&quot;, ErrorCode.UNKNOWN_ERROR)<br/>                        message = value.get(&quot;value&quot;) or value.get(&quot;message&quot;)<br/>                        if not isinstance(message, str):<br/>                            value = message<br/>                            message = message.get(&quot;message&quot;)<br/>                    else:<br/>                        message = value.get(&quot;message&quot;, None)<br/>                except ValueError:<br/>                    pass<br/>    <br/>        exception_class: Type[WebDriverException]<br/>        if status in ErrorCode.NO_SUCH_ELEMENT:<br/>            exception_class = NoSuchElementException<br/>        elif status in ErrorCode.NO_SUCH_FRAME:<br/>            exception_class = NoSuchFrameException<br/>        elif status in ErrorCode.NO_SUCH_SHADOW_ROOT:<br/>            exception_class = NoSuchShadowRootException<br/>        elif status in ErrorCode.NO_SUCH_WINDOW:<br/>            exception_class = NoSuchWindowException<br/>        elif status in ErrorCode.STALE_ELEMENT_REFERENCE:<br/>            exception_class = StaleElementReferenceException<br/>        elif status in ErrorCode.ELEMENT_NOT_VISIBLE:<br/>            exception_class = ElementNotVisibleException<br/>        elif status in ErrorCode.INVALID_ELEMENT_STATE:<br/>            exception_class = InvalidElementStateException<br/>        elif (<br/>            status in ErrorCode.INVALID_SELECTOR<br/>            or status in ErrorCode.INVALID_XPATH_SELECTOR<br/>            or status in ErrorCode.INVALID_XPATH_SELECTOR_RETURN_TYPER<br/>        ):<br/>            exception_class = InvalidSelectorException<br/>        elif status in ErrorCode.ELEMENT_IS_NOT_SELECTABLE:<br/>            exception_class = ElementNotSelectableException<br/>        elif status in ErrorCode.ELEMENT_NOT_INTERACTABLE:<br/>            exception_class = ElementNotInteractableException<br/>        elif status in ErrorCode.INVALID_COOKIE_DOMAIN:<br/>            exception_class = InvalidCookieDomainException<br/>        elif status in ErrorCode.UNABLE_TO_SET_COOKIE:<br/>            exception_class = UnableToSetCookieException<br/>        elif status in ErrorCode.TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.SCRIPT_TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.UNKNOWN_ERROR:<br/>            exception_class = WebDriverException<br/>        elif status in ErrorCode.UNEXPECTED_ALERT_OPEN:<br/>            exception_class = UnexpectedAlertPresentException<br/>        elif status in ErrorCode.NO_ALERT_OPEN:<br/>            exception_class = NoAlertPresentException<br/>        elif status in ErrorCode.IME_NOT_AVAILABLE:<br/>            exception_class = ImeNotAvailableException<br/>        elif status in ErrorCode.IME_ENGINE_ACTIVATION_FAILED:<br/>            exception_class = ImeActivationFailedException<br/>        elif status in ErrorCode.MOVE_TARGET_OUT_OF_BOUNDS:<br/>            exception_class = MoveTargetOutOfBoundsException<br/>        elif status in ErrorCode.JAVASCRIPT_ERROR:<br/>            exception_class = JavascriptException<br/>        elif status in ErrorCode.SESSION_NOT_CREATED:<br/>            exception_class = SessionNotCreatedException<br/>        elif status in ErrorCode.INVALID_ARGUMENT:<br/>            exception_class = InvalidArgumentException<br/>        elif status in ErrorCode.NO_SUCH_COOKIE:<br/>            exception_class = NoSuchCookieException<br/>        elif status in ErrorCode.UNABLE_TO_CAPTURE_SCREEN:<br/>            exception_class = ScreenshotException<br/>        elif status in ErrorCode.ELEMENT_CLICK_INTERCEPTED:<br/>            exception_class = ElementClickInterceptedException<br/>        elif status in ErrorCode.INSECURE_CERTIFICATE:<br/>            exception_class = InsecureCertificateException<br/>        elif status in ErrorCode.INVALID_COORDINATES:<br/>            exception_class = InvalidCoordinatesException<br/>        elif status in ErrorCode.INVALID_SESSION_ID:<br/>            exception_class = InvalidSessionIdException<br/>        elif status in ErrorCode.UNKNOWN_METHOD:<br/>            exception_class = UnknownMethodException<br/>        else:<br/>            exception_class = WebDriverException<br/>        if not value:<br/>            value = response[&quot;value&quot;]<br/>        if isinstance(value, str):<br/>            raise exception_class(value)<br/>        if message == &quot;&quot; and &quot;message&quot; in value:<br/>            message = value[&quot;message&quot;]<br/>    <br/>        screen = None  # type: ignore[assignment]<br/>        if &quot;screen&quot; in value:<br/>            screen = value[&quot;screen&quot;]<br/>    <br/>        stacktrace = None<br/>        st_value = value.get(&quot;stackTrace&quot;) or value.get(&quot;stacktrace&quot;)<br/>        if st_value:<br/>            if isinstance(st_value, str):<br/>                stacktrace = st_value.split(&quot;\n&quot;)<br/>            else:<br/>                stacktrace = []<br/>                try:<br/>                    for frame in st_value:<br/>                        line = frame.get(&quot;lineNumber&quot;, &quot;&quot;)<br/>                        file = frame.get(&quot;fileName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if line:<br/>                            file = f&quot;{file}:{line}&quot;<br/>                        meth = frame.get(&quot;methodName&quot;, &quot;&lt;anonymous&gt;&quot;)<br/>                        if &quot;className&quot; in frame:<br/>                            meth = &quot;{}.{}&quot;.format(frame[&quot;className&quot;], meth)<br/>                        msg = &quot;    at %s (%s)&quot;<br/>                        msg = msg % (meth, file)<br/>                        stacktrace.append(msg)<br/>                except TypeError:<br/>                    pass<br/>        if exception_class == UnexpectedAlertPresentException:<br/>            alert_text = None<br/>            if &quot;data&quot; in value:<br/>                alert_text = value[&quot;data&quot;].get(&quot;text&quot;)<br/>            elif &quot;alert&quot; in value:<br/>                alert_text = value[&quot;alert&quot;].get(&quot;text&quot;)<br/>            raise exception_class(message, screen, stacktrace, alert_text)  # type: ignore[call-arg]  # mypy is not smart enough here<br/>&gt;       raise exception_class(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.NoSuchElementException: Message: no such element: Unable to locate element: {&quot;method&quot;:&quot;xpath&quot;,&quot;selector&quot;:&quot;/html/body/div/div/div[2]/div/div[2]/div/div/table/tbody/tr/td[5]/button&quot;}</span><br/><span class="error">E         (Session info: chrome=110.0.5481.104)</span><br/><span class="error">E       Stacktrace:</span><br/><span class="error">E       Backtrace:</span><br/><span class="error">E       	(No symbol) [0x002D37D3]</span><br/><span class="error">E       	(No symbol) [0x00268B81]</span><br/><span class="error">E       	(No symbol) [0x0016B36D]</span><br/><span class="error">E       	(No symbol) [0x0019D382]</span><br/><span class="error">E       	(No symbol) [0x0019D4BB]</span><br/><span class="error">E       	(No symbol) [0x001D3302]</span><br/><span class="error">E       	(No symbol) [0x001BB464]</span><br/><span class="error">E       	(No symbol) [0x001D1215]</span><br/><span class="error">E       	(No symbol) [0x001BB216]</span><br/><span class="error">E       	(No symbol) [0x00190D97]</span><br/><span class="error">E       	(No symbol) [0x0019253D]</span><br/><span class="error">E       	GetHandleVerifier [0x0054ABF2+2510930]</span><br/><span class="error">E       	GetHandleVerifier [0x00578EC1+2700065]</span><br/><span class="error">E       	GetHandleVerifier [0x0057C86C+2714828]</span><br/><span class="error">E       	GetHandleVerifier [0x00383480+645344]</span><br/><span class="error">E       	(No symbol) [0x00270FD2]</span><br/><span class="error">E       	(No symbol) [0x00276C68]</span><br/><span class="error">E       	(No symbol) [0x00276D4B]</span><br/><span class="error">E       	(No symbol) [0x00280D6B]</span><br/><span class="error">E       	BaseThreadInitThunk [0x753B6939+25]</span><br/><span class="error">E       	RtlGetFullPathName_UEx [0x77018FD2+1218]</span><br/><span class="error">E       	RtlGetFullPathName_UEx [0x77018F9D+1165]</span><br/><span class="error">E       	(No symbol) [0x00000000]</span><br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\remote\errorhandler.py:249: NoSuchElementException<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customer_login[123 789]</td>
+          <td class="col-duration">30.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E8C950&gt;<br/>name = &#x27;123 789&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                        &quot;name&quot;,<br/>                        [<br/>                            (&quot;Hermoine Granger&quot;),<br/>                            (&quot;Saurav Das&quot;),<br/>                            (&quot;Rick Majumdar&quot;),<br/>                            (&quot;123 789&quot;)<br/>                        ]<br/>                    )<br/>    def test_customer_login(self,name):<br/>        try:<br/>            # self.driver.find_element(By.XPATH,locator[&#x27;customer_login&#x27;]).click()<br/>            Your_Name=Select(self.driver.find_element(By.ID,locator[&#x27;dropdown_id&#x27;]))<br/>&gt;           Your_Name.select_by_visible_text(name)<br/><br/>test_new_xyz.py:177: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.select.Select object at 0x00000270E147AA50&gt;<br/>text = &#x27;123 789&#x27;<br/><br/>    def select_by_visible_text(self, text):<br/>        &quot;&quot;&quot;Select all options that display text matching the argument. That is, when given &quot;Bar&quot; this<br/>        would select an option like:<br/>    <br/>         &lt;option value=&quot;foo&quot;&gt;Bar&lt;/option&gt;<br/>    <br/>        :Args:<br/>         - text - The visible text to match against<br/>    <br/>         throws NoSuchElementException If there is no option with specified text in SELECT<br/>        &quot;&quot;&quot;<br/>        xpath = &quot;.//option[normalize-space(.) = %s]&quot; % self._escape_string(text)<br/>        opts = self._el.find_elements(By.XPATH, xpath)<br/>        matched = False<br/>        for opt in opts:<br/>            self._set_selected(opt)<br/>            if not self.is_multiple:<br/>                return<br/>            matched = True<br/>    <br/>        if len(opts) == 0 and &quot; &quot; in text:<br/>            sub_string_without_space = self._get_longest_token(text)<br/>            if sub_string_without_space == &quot;&quot;:<br/>                candidates = self.options<br/>            else:<br/>                xpath = &quot;.//option[contains(.,%s)]&quot; % self._escape_string(sub_string_without_space)<br/>                candidates = self._el.find_elements(By.XPATH, xpath)<br/>            for candidate in candidates:<br/>                if text == candidate.text:<br/>                    self._set_selected(candidate)<br/>                    if not self.is_multiple:<br/>                        return<br/>                    matched = True<br/>    <br/>        if not matched:<br/>&gt;           raise NoSuchElementException(&quot;Could not locate element with visible text: %s&quot; % text)<br/><span class="error">E           selenium.common.exceptions.NoSuchElementException: Message: Could not locate element with visible text: 123 789</span><br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\support\select.py:134: NoSuchElementException<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E8C950&gt;<br/>name = &#x27;123 789&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                        &quot;name&quot;,<br/>                        [<br/>                            (&quot;Hermoine Granger&quot;),<br/>                            (&quot;Saurav Das&quot;),<br/>                            (&quot;Rick Majumdar&quot;),<br/>                            (&quot;123 789&quot;)<br/>                        ]<br/>                    )<br/>    def test_customer_login(self,name):<br/>        try:<br/>            # self.driver.find_element(By.XPATH,locator[&#x27;customer_login&#x27;]).click()<br/>            Your_Name=Select(self.driver.find_element(By.ID,locator[&#x27;dropdown_id&#x27;]))<br/>            Your_Name.select_by_visible_text(name)<br/>            self.driver.find_element(By.XPATH,locator[&#x27;login&#x27;]).click()<br/>    <br/>            sub_str2=&quot;Please open an account with us&quot;<br/>            success=self.driver.find_element(By.XPATH,locator[&#x27;success&#x27;]).text<br/>    <br/>            assert sub_str2 in success<br/>            # self.driver.find_element(By.XPATH,locator[&#x27;home&#x27;]).click()<br/>            self.driver.find_element(By.XPATH,locator[&#x27;logout&#x27;]).click()<br/>        except:<br/>            sub_str2=&quot;Welcome&quot;<br/>&gt;           assert sub_str2 in success<br/><span class="error">E           UnboundLocalError: cannot access local variable &#x27;success&#x27; where it is not associated with a value</span><br/><br/>test_new_xyz.py:188: UnboundLocalError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_deposit[Saurav Das-1-e]</td>
+          <td class="col-duration">1.10</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E8EF10&gt;<br/>name = &#x27;Saurav Das&#x27;, acc_index_no = 1, amount = &#x27;e&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                        &quot;name,acc_index_no,amount&quot;,<br/>                        [<br/>                            (&quot;Hermoine Granger&quot;,2,&quot;100000&quot;),<br/>                            (&#x27;Saurav Das&#x27;,1,&#x27;50000&#x27;),<br/>                            (&quot;Saurav Das&quot;,1,&#x27;e&#x27;),<br/>                            (&#x27;Saurav Das&#x27;,1,&#x27;1000&#x27;),<br/>                            (&#x27;Harry Potter&#x27;,1,&#x27;0&#x27;)<br/>                        ]<br/>                    )<br/>    def test_deposit(self,name,acc_index_no,amount):<br/>    <br/>        Your_Name=Select(self.driver.find_element(By.ID,locator[&#x27;dropdown_id&#x27;]))<br/>        Your_Name.select_by_visible_text(name)<br/>        self.driver.find_element(By.XPATH,locator[&#x27;login&#x27;]).click()<br/>    <br/>        Account=Select(self.driver.find_element(By.ID,locator[&#x27;acc-select&#x27;]))<br/>        Account.select_by_index(acc_index_no)<br/>        self.driver.find_element(By.XPATH,locator[&#x27;deposit&#x27;]).click()<br/>        self.driver.find_element(By.XPATH,  locator[&#x27;amount&#x27;]).send_keys(amount)<br/>        self.driver.find_element(By.XPATH, locator[&#x27;deposit/withdrawl&#x27;]).click()<br/>    <br/>        D=(self.driver.find_element(By.XPATH,locator[&#x27;deposit-success&#x27;]).text)<br/>        self.driver.find_element(By.XPATH,locator[&#x27;logout&#x27;]).click()<br/>    <br/>&gt;       assert D ==&quot;Deposit Successful&quot;<br/><span class="error">E       AssertionError: assert &#x27;&#x27; == &#x27;Deposit Successful&#x27;</span><br/><span class="error">E         - Deposit Successful</span><br/><br/>test_new_xyz.py:242: AssertionError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_deposit[Harry Potter-1-0]</td>
+          <td class="col-duration">1.18</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E8F5D0&gt;<br/>name = &#x27;Harry Potter&#x27;, acc_index_no = 1, amount = &#x27;0&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                        &quot;name,acc_index_no,amount&quot;,<br/>                        [<br/>                            (&quot;Hermoine Granger&quot;,2,&quot;100000&quot;),<br/>                            (&#x27;Saurav Das&#x27;,1,&#x27;50000&#x27;),<br/>                            (&quot;Saurav Das&quot;,1,&#x27;e&#x27;),<br/>                            (&#x27;Saurav Das&#x27;,1,&#x27;1000&#x27;),<br/>                            (&#x27;Harry Potter&#x27;,1,&#x27;0&#x27;)<br/>                        ]<br/>                    )<br/>    def test_deposit(self,name,acc_index_no,amount):<br/>    <br/>        Your_Name=Select(self.driver.find_element(By.ID,locator[&#x27;dropdown_id&#x27;]))<br/>        Your_Name.select_by_visible_text(name)<br/>        self.driver.find_element(By.XPATH,locator[&#x27;login&#x27;]).click()<br/>    <br/>        Account=Select(self.driver.find_element(By.ID,locator[&#x27;acc-select&#x27;]))<br/>        Account.select_by_index(acc_index_no)<br/>        self.driver.find_element(By.XPATH,locator[&#x27;deposit&#x27;]).click()<br/>        self.driver.find_element(By.XPATH,  locator[&#x27;amount&#x27;]).send_keys(amount)<br/>        self.driver.find_element(By.XPATH, locator[&#x27;deposit/withdrawl&#x27;]).click()<br/>    <br/>        D=(self.driver.find_element(By.XPATH,locator[&#x27;deposit-success&#x27;]).text)<br/>        self.driver.find_element(By.XPATH,locator[&#x27;logout&#x27;]).click()<br/>    <br/>&gt;       assert D ==&quot;Deposit Successful&quot;<br/><span class="error">E       AssertionError: assert &#x27;&#x27; == &#x27;Deposit Successful&#x27;</span><br/><span class="error">E         - Deposit Successful</span><br/><br/>test_new_xyz.py:242: AssertionError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_transaction[Nikhil M-1031----]</td>
+          <td class="col-duration">30.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0E9B4D0&gt;<br/>name = &#x27;Nikhil M&#x27;, acc_no = &#x27;1031&#x27;, start_date = &#x27;&#x27;, start_month = &#x27;&#x27;<br/>end_date = &#x27;&#x27;, end_month = &#x27;&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                        &quot;name,acc_no,start_date,start_month,end_date,end_month&quot;,<br/>                        [<br/>                            (&#x27;Hermoine Granger&#x27;,&#x27;1001&#x27;,&quot;15&quot;,&quot;04&quot;,&quot;20&quot;,&quot;04&quot;),<br/>                            (&#x27;Hermoine Granger&#x27;,&#x27;1001&#x27;,&#x27;01&#x27;,&#x27;02&#x27;,&#x27;07&#x27;,&#x27;02&#x27;),<br/>                            (&#x27;Hermoine Granger&#x27;,&#x27;1001&#x27;,&#x27;01&#x27;,&#x27;01&#x27;,&#x27;01&#x27;,&#x27;01&#x27;),<br/>                            (&#x27;Saurav Das&#x27;,&#x27;1017&#x27;,&#x27;&#x27;,&#x27;&#x27;,&#x27;&#x27;,&#x27;&#x27;),<br/>                            (&quot;Harry Potter&quot;,&#x27;1006&#x27;,&quot;01&quot;,&quot;01&quot;,&quot;05&quot;,&quot;07&quot;),<br/>                            (&#x27;Nikhil M&#x27;,&#x27;1031&#x27;,&#x27;&#x27;,&#x27;&#x27;,&#x27;&#x27;,&#x27;&#x27;)<br/>                        ]<br/>                    )<br/>    def test_transaction(self,name,acc_no,start_date,start_month,end_date,end_month):<br/>    <br/>            dropdown = Select(self.driver.find_element(By.ID, locator[&#x27;dropdown_id&#x27;]))<br/>&gt;           dropdown.select_by_visible_text(name)<br/><br/>test_new_xyz.py:287: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.select.Select object at 0x00000270E0F15BD0&gt;<br/>text = &#x27;Nikhil M&#x27;<br/><br/>    def select_by_visible_text(self, text):<br/>        &quot;&quot;&quot;Select all options that display text matching the argument. That is, when given &quot;Bar&quot; this<br/>        would select an option like:<br/>    <br/>         &lt;option value=&quot;foo&quot;&gt;Bar&lt;/option&gt;<br/>    <br/>        :Args:<br/>         - text - The visible text to match against<br/>    <br/>         throws NoSuchElementException If there is no option with specified text in SELECT<br/>        &quot;&quot;&quot;<br/>        xpath = &quot;.//option[normalize-space(.) = %s]&quot; % self._escape_string(text)<br/>        opts = self._el.find_elements(By.XPATH, xpath)<br/>        matched = False<br/>        for opt in opts:<br/>            self._set_selected(opt)<br/>            if not self.is_multiple:<br/>                return<br/>            matched = True<br/>    <br/>        if len(opts) == 0 and &quot; &quot; in text:<br/>            sub_string_without_space = self._get_longest_token(text)<br/>            if sub_string_without_space == &quot;&quot;:<br/>                candidates = self.options<br/>            else:<br/>                xpath = &quot;.//option[contains(.,%s)]&quot; % self._escape_string(sub_string_without_space)<br/>                candidates = self._el.find_elements(By.XPATH, xpath)<br/>            for candidate in candidates:<br/>                if text == candidate.text:<br/>                    self._set_selected(candidate)<br/>                    if not self.is_multiple:<br/>                        return<br/>                    matched = True<br/>    <br/>        if not matched:<br/>&gt;           raise NoSuchElementException(&quot;Could not locate element with visible text: %s&quot; % text)<br/><span class="error">E           selenium.common.exceptions.NoSuchElementException: Message: Could not locate element with visible text: Nikhil M</span><br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\support\select.py:134: NoSuchElementException<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_reset[Soham Majumdar-1016]</td>
+          <td class="col-duration">15.18</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;test_new_xyz.Test_XYZ_Bank object at 0x00000270E0EA5D90&gt;<br/>name = &#x27;Soham Majumdar&#x27;, acc_no = &#x27;1016&#x27;<br/><br/>    @pytest.mark.parametrize(<br/>                        &quot;name,acc_no&quot;,<br/>                        [<br/>                            (&quot;Saurav Das&quot;,&quot;1017&quot;),<br/>                            (&#x27;Hermoine Granger&#x27;,&#x27;1001&#x27;),<br/>                            (&quot;Harry Potter&quot;,&#x27;1004&#x27;),<br/>                            (&quot;Soham Majumdar&quot;,&quot;1016&quot;)<br/>    <br/>                        ]<br/>                    )<br/>    def test_reset(self,name,acc_no):<br/>        Your_Name=Select(self.driver.find_element(By.ID,locator[&#x27;dropdown_id&#x27;]))<br/>&gt;       Your_Name.select_by_visible_text(name)<br/><br/>test_new_xyz.py:339: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.select.Select object at 0x00000270E14AC110&gt;<br/>text = &#x27;Soham Majumdar&#x27;<br/><br/>    def select_by_visible_text(self, text):<br/>        &quot;&quot;&quot;Select all options that display text matching the argument. That is, when given &quot;Bar&quot; this<br/>        would select an option like:<br/>    <br/>         &lt;option value=&quot;foo&quot;&gt;Bar&lt;/option&gt;<br/>    <br/>        :Args:<br/>         - text - The visible text to match against<br/>    <br/>         throws NoSuchElementException If there is no option with specified text in SELECT<br/>        &quot;&quot;&quot;<br/>        xpath = &quot;.//option[normalize-space(.) = %s]&quot; % self._escape_string(text)<br/>        opts = self._el.find_elements(By.XPATH, xpath)<br/>        matched = False<br/>        for opt in opts:<br/>            self._set_selected(opt)<br/>            if not self.is_multiple:<br/>                return<br/>            matched = True<br/>    <br/>        if len(opts) == 0 and &quot; &quot; in text:<br/>            sub_string_without_space = self._get_longest_token(text)<br/>            if sub_string_without_space == &quot;&quot;:<br/>                candidates = self.options<br/>            else:<br/>                xpath = &quot;.//option[contains(.,%s)]&quot; % self._escape_string(sub_string_without_space)<br/>                candidates = self._el.find_elements(By.XPATH, xpath)<br/>            for candidate in candidates:<br/>                if text == candidate.text:<br/>                    self._set_selected(candidate)<br/>                    if not self.is_multiple:<br/>                        return<br/>                    matched = True<br/>    <br/>        if not matched:<br/>&gt;           raise NoSuchElementException(&quot;Could not locate element with visible text: %s&quot; % text)<br/><span class="error">E           selenium.common.exceptions.NoSuchElementException: Message: Could not locate element with visible text: Soham Majumdar</span><br/><br/>C:\Users\EE212981\AppData\Local\Programs\Python\Python311\Lib\site-packages\selenium\webdriver\support\select.py:134: NoSuchElementException<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_url</td>
+          <td class="col-duration">16.98</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_shortUrl</td>
+          <td class="col-duration">1.29</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_title</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_bankManagerlogin</td>
+          <td class="col-duration">0.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_bank_manager_login</td>
+          <td class="col-duration">0.54</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustbutton</td>
+          <td class="col-duration">0.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[Saurav-Das-2127700]</td>
+          <td class="col-duration">1.37</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[--212778]</td>
+          <td class="col-duration">0.38</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[SAURAV-DAS-212770]</td>
+          <td class="col-duration">0.33</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[saurav-das-2127770]</td>
+          <td class="col-duration">0.41</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[Saurav-Das-2127701]</td>
+          <td class="col-duration">0.64</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[Rick-Majumdar-212888]</td>
+          <td class="col-duration">0.33</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[123-789-122100]</td>
+          <td class="col-duration">0.48</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[@$&amp;-#*+-EE1122]</td>
+          <td class="col-duration">0.42</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_addCustomer[ - - ]</td>
+          <td class="col-duration">0.60</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_openAcc</td>
+          <td class="col-duration">0.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_openAccount[Saurav Das-Dollar]</td>
+          <td class="col-duration">0.53</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_openAccount[Saurav Das-Pound]</td>
+          <td class="col-duration">0.43</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_openAccount[Harry Potter-Dollar]</td>
+          <td class="col-duration">0.47</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customerButton</td>
+          <td class="col-duration">0.08</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customer[Saurav]</td>
+          <td class="col-duration">1.29</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customer[1001]</td>
+          <td class="col-duration">0.21</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customer[Majumdar]</td>
+          <td class="col-duration">0.30</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customer[EE1122]</td>
+          <td class="col-duration">0.32</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_delete</td>
+          <td class="col-duration">0.06</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_remove[Ron]</td>
+          <td class="col-duration">0.86</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_remove[789]</td>
+          <td class="col-duration">1.57</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_remove[EE1122]</td>
+          <td class="col-duration">1.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_home_button</td>
+          <td class="col-duration">0.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_home</td>
+          <td class="col-duration">0.23</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customerlogin</td>
+          <td class="col-duration">0.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customerloginclick</td>
+          <td class="col-duration">0.52</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customer_login[Hermoine Granger]</td>
+          <td class="col-duration">0.92</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customer_login[Saurav Das]</td>
+          <td class="col-duration">0.48</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_customer_login[Rick Majumdar]</td>
+          <td class="col-duration">0.52</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_account[Hermoine Granger-1]</td>
+          <td class="col-duration">0.88</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Account Number : 1002 , Balance : 0 , Currency : Pound
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_account[Hermoine Granger-2]</td>
+          <td class="col-duration">0.72</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Account Number : 1003 , Balance : 0 , Currency : Rupee
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_account[Hermoine Granger-0]</td>
+          <td class="col-duration">0.63</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Account Number : 1001 , Balance : 5096 , Currency : Dollar
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_account[Saurav Das-0]</td>
+          <td class="col-duration">0.64</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Account Number : 1016 , Balance : 0 , Currency : Dollar
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_account[Saurav Das-1]</td>
+          <td class="col-duration">0.73</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Account Number : 1017 , Balance : 0 , Currency : Pound
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_account[Harry Potter-2]</td>
+          <td class="col-duration">0.78</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Account Number : 1006 , Balance : 0 , Currency : Rupee
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_deposit[Hermoine Granger-2-100000]</td>
+          <td class="col-duration">2.17</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_deposit[Saurav Das-1-50000]</td>
+          <td class="col-duration">1.17</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_deposit[Saurav Das-1-1000]</td>
+          <td class="col-duration">1.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_withdrawl[Hermoine Granger-2-900]</td>
+          <td class="col-duration">1.51</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_withdrawl[Saurav Das-1-1000]</td>
+          <td class="col-duration">1.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_withdrawl[Harry Potter-1-30]</td>
+          <td class="col-duration">1.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_transaction[Hermoine Granger-1001-15-04-20-04]</td>
+          <td class="col-duration">2.22</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Jan 8, 2015 12:00:00 AM 30 Credit
+Jan 8, 2015 12:00:00 AM 4 Debit
+Jan 9, 2015 12:00:00 AM 30 Credit
+Jan 9, 2015 12:00:00 AM 4 Debit
+Jan 10, 2015 12:00:00 AM 30 Credit
+Jan 10, 2015 12:00:00 AM 4 Debit
+Jan 11, 2015 12:00:00 AM 30 Credit
+Jan 11, 2015 12:00:00 AM 4 Debit
+Jan 12, 2015 12:00:00 AM 30 Credit
+Jan 12, 2015 12:00:00 AM 4 Debit
+Jan 13, 2015 12:00:00 AM 30 Credit
+Jan 13, 2015 12:00:00 AM 4 Debit
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_transaction[Hermoine Granger-1001-01-02-07-02]</td>
+          <td class="col-duration">2.19</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Jan 4, 2015 12:00:00 AM 30 Credit
+Jan 4, 2015 12:00:00 AM 4 Debit
+Jan 5, 2015 12:00:00 AM 30 Credit
+Jan 5, 2015 12:00:00 AM 4 Debit
+Jan 6, 2015 12:00:00 AM 30 Credit
+Jan 6, 2015 12:00:00 AM 4 Debit
+Jan 7, 2015 12:00:00 AM 30 Credit
+Jan 7, 2015 12:00:00 AM 4 Debit
+Jan 8, 2015 12:00:00 AM 30 Credit
+Jan 8, 2015 12:00:00 AM 4 Debit
+Jan 9, 2015 12:00:00 AM 30 Credit
+Jan 9, 2015 12:00:00 AM 4 Debit
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_transaction[Hermoine Granger-1001-01-01-01-01]</td>
+          <td class="col-duration">1.65</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Jan 1, 2015 12:00:00 AM 30 Credit
+Jan 1, 2015 12:00:00 AM 4 Debit
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_transaction[Saurav Das-1017----]</td>
+          <td class="col-duration">1.42</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Feb 21, 2023 10:03:12 AM 50000 Credit
+Feb 21, 2023 10:03:15 AM 1000 Credit
+Feb 21, 2023 10:03:18 AM 1000 Debit
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_transaction[Harry Potter-1006-01-01-05-07]</td>
+          <td class="col-duration">0.76</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_next[Hermoine Granger]</td>
+          <td class="col-duration">0.63</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_previous</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_top</td>
+          <td class="col-duration">0.16</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_reset[Saurav Das-1017]</td>
+          <td class="col-duration">0.91</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_reset[Hermoine Granger-1001]</td>
+          <td class="col-duration">0.93</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_reset[Harry Potter-1004]</td>
+          <td class="col-duration">0.62</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_back[Harry Potter-1004]</td>
+          <td class="col-duration">0.67</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_new_xyz.py::Test_XYZ_Bank::test_logout</td>
+          <td class="col-duration">0.35</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody></table></body></html>
