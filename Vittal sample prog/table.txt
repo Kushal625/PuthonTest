@@ -1,0 +1,15 @@
+#include<iostream>
+using namespace std;
+int main()
+{
+    int a,m,i,sum=0;
+    printf("enter the no");
+    scanf("%d",&a);
+    printf("enter the limt");
+    scanf("%d",&m);
+    for(i=1; i<=m; i++)
+    {
+        sum = a*i;
+        printf("%d*%d=%d\n",a,i,sum);
+    }
+}

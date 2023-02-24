@@ -1,0 +1,20 @@
+#include<iostream>
+#include<cstring>
+
+int main()
+{
+    char s1[10],temp;
+    int i=0,j;
+    printf("enter the first string\n");
+    scanf("%s",s1);
+    j= strlen(s1)-1;
+    while(i<j)
+    {
+        temp = s1[i];
+        s1[i] = s1[j];
+        s1[j] = temp;
+        i++;
+        j--;
+    }
+    std::cout<<s1;
+}

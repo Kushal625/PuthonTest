@@ -1,0 +1,16 @@
+#include<iostream>
+#include<cstring>
+
+int main()
+{
+    char s1[10], s2[10],temp;
+    printf("enter the first string\n");
+    scanf("%s",s1);
+    printf("enter the second string\n");
+    scanf("%s",s2);
+    temp=s1[strlen(s1)-1];
+    s1[strlen(s1)-1]=s2[strlen(s2)-1];
+    s2[strlen(s2)-1]=temp;
+    printf("%s\n",s1);
+    printf("%s\n",s2);
+}

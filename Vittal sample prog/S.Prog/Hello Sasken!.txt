@@ -1,0 +1,97 @@
+#include<stdio.h>
+#include<string.h>
+void main()
+{
+    char word[100][100];
+    char find[100]="sasken";
+    char orgistr[100]="The inhabitants of Sasken are called Sasians";
+    int i=0,j=0,k=0,count=0;
+    while(orgistr[i]!='\0')
+    {
+        if(orgistr[i]!=' ')
+        {
+            word[j][k]=orgistr[i];
+            k++;
+        }
+        else
+        {
+            word[j][k]='\0';
+            if(strcasecmp(word[j],find)==0)
+            {
+                count++;
+            }
+            k=0;
+            j++;
+        }
+        i++;
+    }
+     word[j][k]='\0';
+      if(strcasecmp(word[j],find)==0)
+        {
+        count++;
+    }
+    printf("Hello, ");
+    if(count==0)
+    {
+        printf("World!");
+    }
+    else
+    {
+        printf("Sasken");
+        for(i=0;i<count;i++)
+        {
+            printf("!");
+        }
+    }
+}
+
+C++ Prog
+
+#include<iostream>
+#include<cstring>
+using namespace std;
+int main()
+{
+    char word[100][100];
+    char find[100]="sasken";
+    char orgistr[100]="The inhabitants of Sasken are called Sasians";
+    int i=0,j=0,k=0,count=0;
+    while(orgistr[i]!='\0')
+    {
+        if(orgistr[i]!=' ')
+        {
+            word[j][k]=orgistr[i];
+            k++;
+        }
+        else
+        {
+            word[j][k]='\0';
+            if(strcasecmp(word[j],find)==0)
+            {
+                count++;
+            }
+            k=0;
+            j++;
+        }
+        i++;
+    }
+     word[j][k]='\0';
+      if(strcasecmp(word[j],find)==0)
+        {
+        count++;
+    }
+    printf("Hello, ");
+    if(count==0)
+    {
+        printf("World!");
+    }
+    else
+    {
+        printf("Sasken");
+        for(i=0;i<count;i++)
+        {
+            printf("!");
+        }
+    }
+}
+    

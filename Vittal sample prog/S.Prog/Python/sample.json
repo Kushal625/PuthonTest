@@ -1,0 +1,7 @@
+{
+"name": {
+"emp1": ["Name1", "Name2"],
+"emp2": ["Name3", "Name4"]
+},
+"dept": ["Satcom", "Automotive", "Industrial"]
+}

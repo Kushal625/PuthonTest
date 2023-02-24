@@ -1,0 +1,11 @@
+#include<iostream>
+using namespace std;
+int myfun(int x)
+{
+    return 10 + x;
+}
+int main()
+{
+    cout<<myfun(9);
+    return 0;
+}

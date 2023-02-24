@@ -1,0 +1,32 @@
+#include<iostream>
+int main()
+{
+    int m,n,p,k,i,j;
+    int a[2][2]={3,7,4,9};
+    int b[2][2]={6,2,5,8};
+    int c[2][2] = {0};
+    m = 2;
+    n = 2;
+    p = 2;
+    for(i=0; i<m; i++)
+    {
+        for(j=0; j<p; j++)
+        {
+            for(k=0; k<n; k++)
+            {
+                c[i][j]+=a[i][k]*b[k][j];
+            }
+        }
+    }
+    for(i=0; i<m;i++)
+    {
+        for(j=0; j<p; j++)
+        {
+            printf("%d ",c[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+    
+

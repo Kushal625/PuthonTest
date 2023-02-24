@@ -1,0 +1,27 @@
+#include<iostream>
+using namespace std;
+int main()
+{
+    char a,b,c,d;
+    int i;
+    printf("enter the new User ID");
+    scanf("%s", &a);
+    printf("enter the new Password");
+    scanf("%s",&b);
+    printf("Enter the User ID");
+    scanf("%s",&c);
+    printf("Enter the Password");
+    scanf("%s",&d);
+    for(i=0; i<1; i++)
+    {
+        if(a==c && b==d)
+        {
+        printf("The Password is correct\n");
+        break;
+        }
+        else
+        {
+        printf("The Password is not correct\nTry again");
+        }
+    } return 0;
+}
